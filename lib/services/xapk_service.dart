@@ -77,6 +77,16 @@ class XapkService {
     }
   }
 
+  /// Membaca informasi sistem perangkat (SDK int, release version, model)
+  Future<Map<String, dynamic>> getDeviceInfo() async {
+    try {
+      final info = await _channel.invokeMapMethod<String, dynamic>('getDeviceInfo');
+      return info ?? {};
+    } catch (_) {
+      return {};
+    }
+  }
+
   /// Buka Opsi Pengembang untuk mematikan MIUI Optimization
   Future<void> openDeveloperSettings() async {
     try {

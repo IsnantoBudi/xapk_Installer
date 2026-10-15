@@ -54,6 +54,26 @@ class _XapkPreviewSheetState extends State<XapkPreviewSheet> {
   double _progress = 0.0;
   String? _errorMessage;
   bool _isMiuiError = false;
+  int? _deviceSdk;
+  String? _deviceAndroidRelease;
+  String? _deviceModel;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchDeviceInfo();
+  }
+
+  Future<void> _fetchDeviceInfo() async {
+    final info = await widget.xapkService.getDeviceInfo();
+    if (mounted) {
+      setState(() {
+        _deviceSdk = info['sdkInt'] as int?;
+        _deviceAndroidRelease = info['release']?.toString();
+        _deviceModel = info['model']?.toString();
+      });
+    }
+  }
 
   Future<void> _startInstall() async {
     // 1. Cek izin install unknown apps
@@ -176,7 +196,20 @@ class _XapkPreviewSheetState extends State<XapkPreviewSheet> {
                 ),
                 clipBehavior: Clip.antiAlias,
                 child: info.iconBytes != null
-                    ? Image.memory(info.iconBytes!, fit: BoxFit.cover)
+                    ? Image.memory(
+                        info.iconBytes!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => Center(
+                          child: Text(
+                            info.appName.isNotEmpty ? info.appName[0].toUpperCase() : 'A',
+                            style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFFF8FAFC),
+                            ),
+                          ),
+                        ),
+                      )
                     : Center(
                         child: Text(
                           info.appName.isNotEmpty ? info.appName[0].toUpperCase() : 'A',
@@ -261,7 +294,7 @@ class _XapkPreviewSheetState extends State<XapkPreviewSheet> {
                 Expanded(
                   child: Text(
                     info.isArm64Supported
-                        ? 'Kompatibel dengan Redmi Note 10 (Snapdragon 678, arm64-v8a)'
+                        ? 'Kompatibel dengan CPU Redmi Note 10 (Snapdragon 678, arm64-v8a)'
                         : 'Arsitektur khusus: pastikan CPU perangkat didukung',
                     style: TextStyle(
                       fontSize: 12,
@@ -273,7 +306,74 @@ class _XapkPreviewSheetState extends State<XapkPreviewSheet> {
               ],
             ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 10),
+
+          // Banner Validasi Versi Android OS
+          if (_deviceSdk != null && info.minSdkVersion != null && !info.isSdkCompatible(_deviceSdk!)) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFF78350F).withValues(alpha: 0.35),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFD97706)), // Amber 600
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.warning_amber_rounded, color: Color(0xFFF59E0B), size: 16),
+                      SizedBox(width: 8),
+                      Text(
+                        'Versi Android Tidak Kompatibel',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFFFEF3C7),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    'Aplikasi ini membutuhkan minimal ${XapkInfo.getAndroidVersionName(info.minSdkVersion)}, sedangkan HP Anda (${_deviceModel ?? 'Redmi Note 10'}) menjalankan Android ${_deviceAndroidRelease ?? '12'} (API $_deviceSdk).\nInstalasi kemungkinan besar akan ditolak oleh Android OS.',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      height: 1.4,
+                      color: Color(0xFFFDE68A),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+          ] else if (_deviceSdk != null && info.minSdkVersion != null) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF064E3B).withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFF059669)), // Emerald 600
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.check_circle_outline, color: Color(0xFF10B981), size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Versi OS Cocok: Butuh ${XapkInfo.getAndroidVersionName(info.minSdkVersion)} (HP Anda: Android ${_deviceAndroidRelease ?? '12'})',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xFFD1FAE5),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
 
           // Detail berkas APK & OBB
           Container(
@@ -288,9 +388,19 @@ class _XapkPreviewSheetState extends State<XapkPreviewSheet> {
                 _buildInfoRow('Tipe Paket', info.isSplitApk ? 'Split APK (${info.splitApkEntries.length} berkas)' : 'Single Base APK'),
                 const Divider(color: Color(0xFF334155), height: 16),
                 _buildInfoRow('Data OBB', info.hasObb ? '${info.obbEntries.length} berkas terdeteksi' : 'Tidak ada data OBB'),
-                if (info.minSdkVersion != null) ...[
+                const Divider(color: Color(0xFF334155), height: 16),
+                _buildInfoRow(
+                  'Syarat Min. Android',
+                  info.minSdkVersion != null
+                      ? XapkInfo.getAndroidVersionName(info.minSdkVersion)
+                      : 'Universal (Semua versi)',
+                ),
+                if (_deviceSdk != null) ...[
                   const Divider(color: Color(0xFF334155), height: 16),
-                  _buildInfoRow('Minimal Android SDK', 'API ${info.minSdkVersion}'),
+                  _buildInfoRow(
+                    'Android Perangkat Anda',
+                    '${_deviceModel != null ? '$_deviceModel • ' : ''}Android ${_deviceAndroidRelease ?? ''} (API $_deviceSdk)',
+                  ),
                 ],
               ],
             ),
@@ -413,24 +523,39 @@ class _XapkPreviewSheetState extends State<XapkPreviewSheet> {
                 ),
               ),
               const SizedBox(width: 12),
-              if (_stage != InstallStage.success)
-                Expanded(
-                  flex: 2,
-                  child: ElevatedButton(
-                    onPressed: _stage == InstallStage.inProgress ? null : _startInstall,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF0F172A) == Colors.black ? Colors.white : const Color(0xFF0284C7),
-                      foregroundColor: Colors.white,
-                      disabledBackgroundColor: const Color(0xFF334155),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    ),
-                    child: Text(
-                      _stage == InstallStage.failed ? 'Coba Pasang Lagi' : 'Pasang Aplikasi',
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                  ),
+              if (_stage != InstallStage.success) ...[
+                Builder(
+                  builder: (context) {
+                    final isSdkIncompatible = _deviceSdk != null &&
+                        info.minSdkVersion != null &&
+                        !info.isSdkCompatible(_deviceSdk!);
+                    final buttonColor = isSdkIncompatible ? const Color(0xFFD97706) : const Color(0xFF0284C7);
+                    final buttonText = _stage == InstallStage.failed
+                        ? 'Coba Pasang Lagi'
+                        : isSdkIncompatible
+                            ? 'Tetap Pasang Aplikasi'
+                            : 'Pasang Aplikasi';
+
+                    return Expanded(
+                      flex: 2,
+                      child: ElevatedButton(
+                        onPressed: _stage == InstallStage.inProgress ? null : _startInstall,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: buttonColor,
+                          foregroundColor: Colors.white,
+                          disabledBackgroundColor: const Color(0xFF334155),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        child: Text(
+                          buttonText,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    );
+                  },
                 ),
+              ],
             ],
           ),
         ],

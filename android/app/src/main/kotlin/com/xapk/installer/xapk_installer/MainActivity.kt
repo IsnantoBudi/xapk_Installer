@@ -54,10 +54,17 @@ class MainActivity : FlutterActivity() {
                 }
                 else -> {
                     val isMiui = isMiuiDevice()
-                    val detailedMsg = if (isMiui && (message.contains("verification", ignoreCase = true) || message.contains("internal", ignoreCase = true))) {
-                        "MIUI Optimization memblokir instalasi Split APK. Matikan 'Turn on MIUI Optimization' di Opsi Pengembang (Developer Options)."
-                    } else {
-                        message.ifEmpty { "Gagal menginstal paket (Kode status: $status)" }
+                    val detailedMsg = when {
+                        message.contains("INSTALL_FAILED_OLDER_SDK", ignoreCase = true) ||
+                        message.contains("Requires newer sdk", ignoreCase = true) -> {
+                            "Versi Android perangkat Anda terlalu rendah untuk aplikasi ini (INSTALL_FAILED_OLDER_SDK). Silakan unduh versi berkas XAPK yang lebih lama."
+                        }
+                        isMiui && (message.contains("verification", ignoreCase = true) || message.contains("internal", ignoreCase = true)) -> {
+                            "MIUI Optimization memblokir instalasi Split APK. Matikan 'Turn on MIUI Optimization' di Opsi Pengembang (Developer Options)."
+                        }
+                        else -> {
+                            message.ifEmpty { "Gagal menginstal paket (Kode status: $status)" }
+                        }
                     }
                     runOnUiThread {
                         methodChannel?.invokeMethod("onInstallResult", mapOf(
@@ -135,6 +142,15 @@ class MainActivity : FlutterActivity() {
                 }
                 "isMiuiDevice" -> {
                     result.success(isMiuiDevice())
+                }
+                "getDeviceInfo" -> {
+                    result.success(mapOf(
+                        "sdkInt" to Build.VERSION.SDK_INT,
+                        "release" to (Build.VERSION.RELEASE ?: ""),
+                        "model" to (Build.MODEL ?: ""),
+                        "manufacturer" to (Build.MANUFACTURER ?: ""),
+                        "brand" to (Build.BRAND ?: "")
+                    ))
                 }
                 "openDeveloperSettings" -> {
                     try {
