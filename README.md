@@ -74,11 +74,19 @@ android/
    flutter run -d <device-id>
    ```
 
-4. **Build Release APK**:
-   ```bash
-   flutter build apk --release
-   ```
-   The output APK will be generated at `build/app/outputs/flutter-apk/app-release.apk`.
+4. **Build Release APK (Optimized)**:
+   - **Universal APK** (All CPU architectures, with R8 shrink + Dart obfuscation):
+     ```bash
+     flutter build apk --release --obfuscate --split-debug-info=build/app/outputs/symbols
+     ```
+   - **Lightweight Standalone APK (Recommended, ~15.1 MB for arm64 / Redmi Note 10)**:
+     ```bash
+     flutter build apk --release --split-per-abi --obfuscate --split-debug-info=build/app/outputs/symbols
+     ```
+     Outputs:
+     - `app-arm64-v8a-release.apk` (15.1 MB — Redmi Note 10 & 64-bit phones)
+     - `app-armeabi-v7a-release.apk` (12.3 MB — 32-bit older phones)
+     - `app-x86_64-release.apk` (16.2 MB — Emulators)
 
 ---
 
